@@ -92,8 +92,8 @@ class PolygonProcessor:
     # ── rasterization ────────────────────────────────────────────────────────
 
     @staticmethod
-    def polygon_to_mask(polygon: Polygon, shape: tuple[int, int]) -> np.ndarray:
-        """Rasterize a polygon to a boolean mask using the pixel-edge convention."""
+    def polygon_to_mask(polygon, shape: tuple[int, int]) -> np.ndarray:
+        """Rasterize a polygon (or MultiPolygon) to a boolean mask using the pixel-edge convention."""
         mask = features.rasterize(
             [(polygon, 1)],
             out_shape=shape,
@@ -105,15 +105,20 @@ class PolygonProcessor:
 
     # ── cropping ─────────────────────────────────────────────────────────────
 
-    def crop_array_by_polygon(
-        self,
+    @staticmethod
+    def _crop_geometry(
+        geometry,
         img: np.ndarray,
         dim_order: str = "CYX",
         fill_value: float = 0,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Crop a 2D or 3D image to the polygon bounds and apply the mask.
+        """Crop and mask `img` by an arbitrary shapely geometry (Polygon or MultiPolygon).
 
-        Returns (cropped_image, mask). Pixels outside the polygon are set to
+        Uses `rasterio.features.rasterize` with `Affine.translation(x_min, y_min)`
+        so the geometry's original coordinates burn in correctly without manual
+        coord shifting. Works for any geometry that has `.bounds`.
+
+        Returns (cropped_image, mask). Pixels outside the geometry are set to
         `fill_value`.
         """
         if img.ndim not in (2, 3):
@@ -128,17 +133,21 @@ class PolygonProcessor:
         else:  # YXC
             height, width = img.shape[:2]
 
-        x_min, y_min, x_max, y_max = self.polygon.bounds
+        x_min, y_min, x_max, y_max = geometry.bounds
         y_min = max(0, int(np.floor(y_min)))
         y_max = min(height, int(np.ceil(y_max)))
         x_min = max(0, int(np.floor(x_min)))
         x_max = min(width, int(np.ceil(x_max)))
 
-        # Shift polygon to the cropped frame and rasterize.
-        xs = [x - x_min for x in self.polygon.exterior.coords.xy[0]]
-        ys = [y - y_min for y in self.polygon.exterior.coords.xy[1]]
-        shifted = Polygon(zip(xs, ys))
-        mask = PolygonProcessor.polygon_to_mask(shifted, (y_max - y_min, x_max - x_min))
+        # Translation transform: pixel (0,0) of the cropped frame is at
+        # original coord (x_min, y_min). Lets us pass the geometry as-is.
+        mask = features.rasterize(
+            [(geometry, 1)],
+            out_shape=(y_max - y_min, x_max - x_min),
+            fill=0,
+            dtype=np.uint8,
+            transform=Affine.translation(x_min, y_min),
+        ).astype(bool)
 
         if img.ndim == 2:
             cropped = img[y_min:y_max, x_min:x_max].copy()
@@ -154,6 +163,15 @@ class PolygonProcessor:
         cropped = img[y_min:y_max, x_min:x_max, :].copy()
         cropped[~mask, :] = fill_value
         return cropped, mask
+
+    def crop_array_by_polygon(
+        self,
+        img: np.ndarray,
+        dim_order: str = "CYX",
+        fill_value: float = 0,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Crop and mask `img` by self.polygon. See `_crop_geometry`."""
+        return PolygonProcessor._crop_geometry(self.polygon, img, dim_order, fill_value)
 
 
 # =============================================================================
@@ -341,13 +359,21 @@ class GeojsonProcessor:
             if missing_cls:
                 palette.update(_assign_colors(missing_cls))
 
+        unmapped = []
         for poly_name, target_cls in name_dict.items():
             if poly_name not in self.gdf.index:
+                unmapped.append(poly_name)
                 continue
             self.gdf.at[poly_name, "classification"] = json.dumps({
                 "name": target_cls,
                 "color": palette[target_cls],
             })
+        if unmapped:
+            logger.warning(
+                "update_classification: %d name(s) in name_dict not found in "
+                "gp.gdf.index (skipped): %s",
+                len(unmapped), unmapped,
+            )
 
     # ── persistence ──────────────────────────────────────────────────────────
 
@@ -455,9 +481,10 @@ class GeojsonProcessor:
             if len({s for s in shapes if len(s) == 2}) != 1:
                 raise ValueError("All arrays in dict must be 2D and same shape")
             for name, geom in zip(self.gdf.index, self.gdf.geometry):
-                pp = PolygonProcessor(geom)
                 yield name, {
-                    chan: pp.crop_array_by_polygon(arr, fill_value=fill_value)[0]
+                    chan: PolygonProcessor._crop_geometry(
+                        geom, arr, fill_value=fill_value,
+                    )[0]
                     for chan, arr in img.items()
                 }
             return
@@ -466,8 +493,7 @@ class GeojsonProcessor:
             raise TypeError(f"img must be np.ndarray or dict, got {type(img).__name__}")
 
         for name, geom in zip(self.gdf.index, self.gdf.geometry):
-            pp = PolygonProcessor(geom)
-            cropped, _ = pp.crop_array_by_polygon(
-                img, dim_order=dim_order, fill_value=fill_value,
+            cropped, _ = PolygonProcessor._crop_geometry(
+                geom, img, dim_order=dim_order, fill_value=fill_value,
             )
             yield name, cropped

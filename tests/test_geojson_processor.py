@@ -234,6 +234,15 @@ def test_update_classification_unmapped_polygon_keeps_classification():
     assert gp.gdf.loc["B", "classification"] == original_b
 
 
+def test_update_classification_warns_on_unknown_name(caplog):
+    """Names in name_dict that don't exist in gp.gdf.index get a warning."""
+    import logging
+    gp = GeojsonProcessor(_two_polygon_gdf())
+    with caplog.at_level(logging.WARNING, logger="maskgeo.processor"):
+        gp.update_classification({"A": "Tumor", "Typo": "Stroma"})
+    assert any("Typo" in rec.message for rec in caplog.records)
+
+
 # ─── output_geojson round-trip ───────────────────────────────────────────────
 
 def test_output_geojson_roundtrip(tmp_path):
@@ -326,3 +335,21 @@ def test_crop_image_invalid_dim_order():
     gp = GeojsonProcessor(_gdf_from_features(feats))
     with pytest.raises(ValueError, match="dim_order"):
         list(gp.crop_image(img, dim_order="ZZZ"))
+
+
+def test_crop_image_handles_multipolygon():
+    """polygon_only=False keeps MultiPolygon; crop_image must work for them too."""
+    a = [[2, 2], [4, 2], [4, 4], [2, 4], [2, 2]]
+    b = [[10, 10], [12, 10], [12, 12], [10, 12], [10, 10]]
+    feats = [_multipoly_feature([a, b], name="mp")]
+    gp = GeojsonProcessor(_gdf_from_features(feats), polygon_only=False)
+    img = np.full((20, 20), 99, dtype=np.uint8)
+    results = dict(gp.crop_image(img))
+    assert "mp" in results
+    cropped = results["mp"]
+    # bbox of the MultiPolygon spans (2,2)..(12,12) → cropped shape (10, 10).
+    assert cropped.shape == (10, 10)
+    # Both blocks should be present (value 99); outside should be 0.
+    assert (cropped[0:2, 0:2] == 99).all()  # piece a (rows 2..3, cols 2..3 in img)
+    assert (cropped[8:10, 8:10] == 99).all()  # piece b (rows 10..11, cols 10..11)
+    assert (cropped[5, 5] == 0)  # gap between pieces
