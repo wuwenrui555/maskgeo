@@ -3,7 +3,7 @@ name = "maskgeo"
 version = "1.0.0"
 description = "Convert between segmentation masks and pixel-edge polygons (GeoJSON)"
 readme = "README.md"
-license = "GPL-3.0-or-later"
+license = "Apache-2.0"
 authors = [{ name = "wuwenrui555", email = "wuwenruiwwr@outlook.com" }]
 requires-python = ">=3.12"
 dependencies = [

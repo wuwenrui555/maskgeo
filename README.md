@@ -114,4 +114,4 @@ for name, cropped in gp.crop_image(reader.zimg, dim_order="CYX"):
 
 ## License
 
-GPL-3.0-or-later
+Apache-2.0
