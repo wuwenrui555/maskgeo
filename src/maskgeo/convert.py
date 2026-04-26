@@ -29,10 +29,22 @@ def mask_to_geojson(
     """
     annotation_dict = annotation_dict or {}
 
+    # Validate input shape and dtype.
+    if mask.ndim != 2:
+        raise ValueError(f"mask must be 2D, got {mask.ndim}D shape={mask.shape}")
+    if mask.dtype.kind == "b":
+        mask = mask.astype(np.uint8)
+    elif mask.dtype.kind not in ("i", "u"):
+        raise TypeError(
+            f"mask must have integer dtype (got {mask.dtype}). "
+            "Floating-point masks are ambiguous; cast explicitly first."
+        )
+
+    # "Unknown" is special-cased to gray inside _assign_colors; all other names
+    # fill the primary palette first, then golden-ratio hue stepping.
     cls_names = sorted(set(annotation_dict.values()) | {"Unknown"})
     auto = _assign_colors(cls_names)
     colors = {**auto, **(color_dict or {})}
-    colors.setdefault("Unknown", [128, 128, 128])
 
     # Group polygons by label so disjoint pieces become MultiPolygon.
     label_to_geoms: dict[int, list] = {}

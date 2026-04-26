@@ -37,3 +37,21 @@ def test_assign_colors_handles_more_than_six():
 
 def test_assign_colors_empty():
     assert _assign_colors([]) == {}
+
+
+def test_assign_colors_unknown_always_gray():
+    """'Unknown' always maps to [128, 128, 128] regardless of position."""
+    # First in list
+    a = _assign_colors(["Unknown", "Tumor", "Stroma"])
+    assert a["Unknown"] == [128, 128, 128]
+    assert a["Tumor"] == [255, 0, 0]   # gets first primary, not pushed
+    assert a["Stroma"] == [0, 255, 0]
+    # Middle
+    b = _assign_colors(["Tumor", "Unknown", "Stroma"])
+    assert b["Unknown"] == [128, 128, 128]
+    assert b["Tumor"] == [255, 0, 0]
+    assert b["Stroma"] == [0, 255, 0]
+    # 'unknown' lowercase too
+    c = _assign_colors(["unknown", "Tumor"])
+    assert c["unknown"] == [128, 128, 128]
+    assert c["Tumor"] == [255, 0, 0]

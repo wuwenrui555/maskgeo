@@ -231,3 +231,31 @@ def test_empty_geojson_returns_zero_mask(tmp_path):
     back = geojson_to_mask(tmp_path / "empty.geojson", shape=(10, 10))
     assert back.shape == (10, 10)
     assert back.sum() == 0
+
+
+# ─── input validation on mask_to_geojson ────────────────────────────────────
+
+def test_mask_to_geojson_rejects_3d_mask(tmp_path):
+    """A 3D mask is almost certainly an error; raise instead of silently flattening."""
+    mask = np.zeros((3, 10, 10), dtype=np.uint8)
+    with pytest.raises(ValueError, match="2D"):
+        mask_to_geojson(mask, tmp_path / "x.geojson")
+
+
+def test_mask_to_geojson_rejects_float_mask(tmp_path):
+    """A float mask is ambiguous (truncation surprise); raise."""
+    mask = np.zeros((10, 10), dtype=np.float32)
+    mask[2:5, 2:5] = 1.5
+    with pytest.raises(TypeError, match="integer"):
+        mask_to_geojson(mask, tmp_path / "x.geojson")
+
+
+def test_mask_to_geojson_accepts_bool_mask(tmp_path):
+    """A bool mask works (treated as 0/1 binary)."""
+    mask = np.zeros((10, 10), dtype=bool)
+    mask[2:5, 2:5] = True
+    out = tmp_path / "bool.geojson"
+    mask_to_geojson(mask, out)  # should not raise
+    data = json.loads(out.read_text())
+    assert len(data["features"]) == 1
+    assert data["features"][0]["properties"]["name"] == "1"

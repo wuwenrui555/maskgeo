@@ -16,6 +16,11 @@ Or with uv:
 uv add git+https://github.com/wuwenrui555/maskgeo.git
 ```
 
+> **Note:** `rasterio` requires the GDAL system library. On Linux:
+> `sudo apt install gdal-bin libgdal-dev`. On macOS: `brew install gdal`.
+> Wheels for common platforms ship with GDAL bundled, so most users won't
+> need to install it manually.
+
 ## Quick start
 
 ### mask → GeoJSON

@@ -1,69 +1,24 @@
 """Tests for GeojsonProcessor — load, sanitize, name-normalize, classify, crop."""
 import json
 
-import geopandas as gpd
 import matplotlib
 import numpy as np
 import pytest
-from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 matplotlib.use("Agg")  # non-interactive backend for CI
 import matplotlib.pyplot as plt  # noqa: E402
 
 from maskgeo.processor import GeojsonProcessor  # noqa: E402
 
-
-# ─── helpers ─────────────────────────────────────────────────────────────────
-
-def _gdf_from_features(features: list[dict]) -> gpd.GeoDataFrame:
-    """Helper: build a GeoDataFrame from a list of GeoJSON-like feature dicts."""
-    return gpd.GeoDataFrame.from_features(features)
-
-
-def _poly_feature(coords, name=None):
-    feat = {
-        "type": "Feature",
-        "geometry": {"type": "Polygon", "coordinates": [coords]},
-        "properties": {},
-    }
-    if name is not None:
-        feat["properties"]["name"] = name
-    return feat
-
-
-def _multipoly_feature(rings, name=None):
-    feat = {
-        "type": "Feature",
-        "geometry": {"type": "MultiPolygon",
-            "coordinates": [[r] for r in rings]},
-        "properties": {},
-    }
-    if name is not None:
-        feat["properties"]["name"] = name
-    return feat
-
-
-def _line_feature(coords, name=None):
-    feat = {
-        "type": "Feature",
-        "geometry": {"type": "LineString", "coordinates": coords},
-        "properties": {},
-    }
-    if name is not None:
-        feat["properties"]["name"] = name
-    return feat
-
-
-def _two_polygon_gdf():
-    feats = [
-        {"type": "Feature", "geometry": {"type": "Polygon",
-            "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
-         "properties": {"name": "A"}},
-        {"type": "Feature", "geometry": {"type": "Polygon",
-            "coordinates": [[[2, 0], [3, 0], [3, 1], [2, 1], [2, 0]]]},
-         "properties": {"name": "B"}},
-    ]
-    return _gdf_from_features(feats)
+# Shared helpers live in conftest.py; alias them locally for brevity.
+from conftest import (  # noqa: E402
+    gdf_from_features as _gdf_from_features,
+    line_feature as _line_feature,
+    multipoly_feature as _multipoly_feature,
+    poly_feature as _poly_feature,
+    two_polygon_gdf as _two_polygon_gdf,
+)
 
 
 # ─── from_path basic shape ───────────────────────────────────────────────────

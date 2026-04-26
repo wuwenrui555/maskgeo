@@ -15,6 +15,12 @@ dependencies = [
     "matplotlib>=3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/wuwenrui555/maskgeo"
+Source = "https://github.com/wuwenrui555/maskgeo"
+Issues = "https://github.com/wuwenrui555/maskgeo/issues"
+Changelog = "https://github.com/wuwenrui555/maskgeo/blob/main/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "pytest>=8",
