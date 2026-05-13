@@ -92,14 +92,38 @@ class PolygonProcessor:
     # ── rasterization ────────────────────────────────────────────────────────
 
     @staticmethod
-    def polygon_to_mask(polygon, shape: tuple[int, int]) -> np.ndarray:
-        """Rasterize a polygon (or MultiPolygon) to a boolean mask using the pixel-edge convention."""
+    def polygon_to_mask(
+        polygon,
+        shape: tuple[int, int],
+        all_touched: bool = False,
+    ) -> np.ndarray:
+        """Rasterize a polygon (or MultiPolygon) to a boolean mask, pixel-edge convention.
+
+        Parameters
+        ----------
+        polygon : shapely.geometry
+            A Polygon or MultiPolygon. Coordinates are interpreted in the
+            pixel-edge convention (integers = pixel boundaries).
+        shape : tuple[int, int]
+            Output mask shape ``(H, W)``.
+        all_touched : bool, default False
+            - ``False`` (default): only pixels whose center is inside the
+              polygon get value 1. This makes ``polygon_to_mask`` the exact
+              inverse of ``mask_to_geojson``; it is the right choice for
+              "is the cell centroid inside this annotation" queries.
+            - ``True``: every pixel touched by the polygon edge gets value 1.
+              Useful for sub-pixel polygons (otherwise dropped entirely),
+              QuPath ellipses with fractional coordinates that lose boundary
+              pixels under the center test, or any "did the annotation cover
+              this pixel at all" question.
+        """
         mask = features.rasterize(
             [(polygon, 1)],
             out_shape=shape,
             fill=0,
             dtype=np.uint8,
             transform=Affine.identity(),
+            all_touched=all_touched,
         )
         return mask.astype(bool)
 

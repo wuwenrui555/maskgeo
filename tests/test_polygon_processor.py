@@ -75,6 +75,30 @@ def test_polygon_to_mask_50x50_block():
     assert not mask[50, 29] and not mask[100, 30]  # edges respected
 
 
+def test_polygon_to_mask_subpixel_dropped_by_default():
+    """A sub-pixel polygon that doesn't reach the pixel center is dropped (all_touched=False)."""
+    # Tiny polygon inside pixel (5, 5) but not covering its center (5.5, 5.5).
+    poly = Polygon([(5.1, 5.1), (5.4, 5.1), (5.4, 5.4), (5.1, 5.4)])
+    mask = PolygonProcessor.polygon_to_mask(poly, shape=(10, 10))
+    assert int(mask.sum()) == 0, "default all_touched=False should drop sub-pixel polygons"
+
+
+def test_polygon_to_mask_subpixel_kept_with_all_touched():
+    """Same sub-pixel polygon is kept when all_touched=True."""
+    poly = Polygon([(5.1, 5.1), (5.4, 5.1), (5.4, 5.4), (5.1, 5.4)])
+    mask = PolygonProcessor.polygon_to_mask(poly, shape=(10, 10), all_touched=True)
+    assert int(mask.sum()) == 1
+    assert mask[5, 5], "pixel (5, 5) touched by the polygon must be burned"
+
+
+def test_polygon_to_mask_pixel_aligned_invariant_to_all_touched():
+    """Pixel-edge-aligned polygons give the same mask under both modes."""
+    poly = Polygon([(1, 1), (2, 1), (2, 2), (1, 2)])
+    mask_default = PolygonProcessor.polygon_to_mask(poly, shape=(5, 5))
+    mask_all = PolygonProcessor.polygon_to_mask(poly, shape=(5, 5), all_touched=True)
+    np.testing.assert_array_equal(mask_default, mask_all)
+
+
 # ─── PolygonProcessor.__init__ ────────────────────────────────────────────────
 
 def test_init_with_polygon_keeps_polygon():
