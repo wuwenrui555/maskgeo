@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0] - 2026-05-13
+
+### Added
+
+- `all_touched` parameter on `PolygonProcessor.polygon_to_mask` and
+  `geojson_to_mask` (default `False`, forwarded directly to
+  `rasterio.features.rasterize`).
+  - `False` (default): only pixels whose center is inside the polygon are
+    burned. This is the exact inverse of `mask_to_geojson` (round-trip is
+    byte-identical) and the right choice for "is the cell centroid inside
+    this annotation" queries.
+  - `True`: every pixel touched by the polygon edge is burned. Use this
+    when sub-pixel polygons (entirely smaller than a single pixel) or
+    fractional-coordinate polygons (e.g. QuPath ellipses) would otherwise
+    lose boundary pixels under the center test.
+
 ## [1.0.0] - 2026-04-26
 
 Initial release. Replaces the `geojson` portion of the legacy

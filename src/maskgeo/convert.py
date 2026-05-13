@@ -88,6 +88,7 @@ def geojson_to_mask(
     polygon_only: bool = True,
     multipolygon_area_ratio: float = PolygonProcessor.DEFAULT_MULTIPOLYGON_AREA_RATIO,
     linestring_end_distance: float = PolygonProcessor.DEFAULT_LINESTRING_END_DISTANCE,
+    all_touched: bool = False,
 ) -> np.ndarray:
     """Rasterize a GeoJSON file to a labeled mask.
 
@@ -107,6 +108,17 @@ def geojson_to_mask(
           properties.classification.name. label_dict required.
     polygon_only : bool, default True
         Pass False to keep MultiPolygon as-is (round-trip case).
+    all_touched : bool, default False
+        - ``False`` (default): only pixels whose center is inside a polygon
+          take that polygon's label. This is the exact inverse of
+          ``mask_to_geojson`` (round-trip is byte-identical) and the right
+          choice for "is the cell centroid inside this annotation" queries.
+        - ``True``: every pixel touched by a polygon edge takes the label.
+          Useful for sub-pixel polygons (otherwise dropped entirely),
+          QuPath ellipses with fractional coordinates that lose boundary
+          pixels under the center test, or any "did the annotation cover
+          this pixel at all" question. When labels overlap on a pixel,
+          rasterio resolves to the last-burned label (later polygons win).
     """
     if label_by not in ("name", "classification"):
         raise ValueError(
@@ -163,4 +175,5 @@ def geojson_to_mask(
     return features.rasterize(
         pairs, out_shape=(H, W), fill=0,
         transform=Affine.identity(), dtype=dtype,
+        all_touched=all_touched,
     )
