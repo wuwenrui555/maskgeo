@@ -259,3 +259,53 @@ def test_mask_to_geojson_accepts_bool_mask(tmp_path):
     data = json.loads(out.read_text())
     assert len(data["features"]) == 1
     assert data["features"][0]["properties"]["name"] == "1"
+
+
+# ─── all_touched parameter ──────────────────────────────────────────────────
+
+
+def _write_subpixel_geojson(path):
+    """Write a geojson with a sub-pixel polygon (inside pixel (5,5), not at center)."""
+    data = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": [
+                [[5.1, 5.1], [5.4, 5.1], [5.4, 5.4], [5.1, 5.4], [5.1, 5.1]]
+            ]},
+            "properties": {"name": "1"},
+        }],
+    }
+    path.write_text(json.dumps(data))
+
+
+def test_geojson_to_mask_subpixel_dropped_by_default(tmp_path):
+    """Sub-pixel polygon dropped with default all_touched=False."""
+    p = tmp_path / "tiny.geojson"
+    _write_subpixel_geojson(p)
+    mask = geojson_to_mask(p, shape=(10, 10))
+    assert int(mask.sum()) == 0
+
+
+def test_geojson_to_mask_subpixel_kept_with_all_touched(tmp_path):
+    """Same sub-pixel polygon kept when all_touched=True."""
+    p = tmp_path / "tiny.geojson"
+    _write_subpixel_geojson(p)
+    mask = geojson_to_mask(p, shape=(10, 10), all_touched=True)
+    assert int(mask.sum()) == 1
+    assert mask[5, 5]
+
+
+def test_geojson_to_mask_all_touched_does_not_break_roundtrip(tmp_path):
+    """For pixel-edge polygons (from mask_to_geojson), both modes agree."""
+    mask = np.zeros((50, 50), dtype=np.int32)
+    mask[10:20, 10:20] = 1
+    mask[30:40, 30:40] = 2
+    p = tmp_path / "rt.geojson"
+    mask_to_geojson(mask, p, annotation_dict={1: "A", 2: "B"})
+    back_default = geojson_to_mask(p, shape=mask.shape, polygon_only=False)
+    back_touched = geojson_to_mask(
+        p, shape=mask.shape, polygon_only=False, all_touched=True
+    )
+    np.testing.assert_array_equal(back_default, mask)
+    np.testing.assert_array_equal(back_touched, mask)
